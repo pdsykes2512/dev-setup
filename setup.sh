@@ -92,13 +92,22 @@ else
   echo "  You'll be asked for a few details before anything is installed."
   echo ""
 
-  # ── Tailscale auth key ──────────────────────────────────────────────────────
-  prompt_secret TAILSCALE_AUTH_KEY \
-    "Tailscale Auth Key" \
-    "  1. Go to https://login.tailscale.com/admin/settings/keys
+  # ── Tailscale ───────────────────────────────────────────────────────────────
+  echo -e "\n${BOLD}Tailscale VPN${NC}"
+  echo -e "${YELLOW}  Install Tailscale to access this container securely over VPN?${NC}"
+  read -r -p "  → Install Tailscale? (yes/no): " INSTALL_TAILSCALE_INPUT
+  if [[ "$INSTALL_TAILSCALE_INPUT" == "yes" ]]; then
+    INSTALL_TAILSCALE="true"
+    prompt_secret TAILSCALE_AUTH_KEY \
+      "Tailscale Auth Key" \
+      "  1. Go to https://login.tailscale.com/admin/settings/keys
   2. Click 'Generate auth key'
   3. Tick 'Reusable' if you may re-run this script
   4. Copy and paste the key below (input is hidden)"
+  else
+    INSTALL_TAILSCALE="false"
+    TAILSCALE_AUTH_KEY=""
+  fi
 
   # ── Cloudflared token ───────────────────────────────────────────────────────
   echo -e "\n${BOLD}Cloudflare Tunnel Token${NC}"
@@ -169,7 +178,11 @@ else
   echo -e "  Prototype name:     ${BOLD}${PROTOTYPE_NAME}${NC}"
   echo -e "  MongoDB database:   ${BOLD}${MONGO_DB_NAME}${NC}"
   echo -e "  MongoDB user:       ${BOLD}${MONGO_USER}${NC}"
-  echo -e "  Tailscale key:      ${BOLD}$(echo "$TAILSCALE_AUTH_KEY" | cut -c1-6)…${NC} (hidden)"
+  if [[ "$INSTALL_TAILSCALE" == "true" ]]; then
+    echo -e "  Tailscale:          ${BOLD}yes${NC} — key: $(echo "$TAILSCALE_AUTH_KEY" | cut -c1-6)… (hidden)"
+  else
+    echo -e "  Tailscale:          ${BOLD}no${NC}"
+  fi
   echo -e "  Cloudflare token:   ${BOLD}$(echo "$CLOUDFLARED_TOKEN"  | cut -c1-6)…${NC} (hidden)"
   echo -e "  SSH key:            ${BOLD}$(echo "$SSH_PUBLIC_KEY"     | cut -c1-20)…${NC} (truncated)"
   echo ""
@@ -178,6 +191,7 @@ else
 
   # ── Save config for resumption ───────────────────────────────────────────────
   cat > "${CONFIG_FILE}" <<CONFIGEOF
+INSTALL_TAILSCALE=$(printf '%q' "$INSTALL_TAILSCALE")
 TAILSCALE_AUTH_KEY=$(printf '%q' "$TAILSCALE_AUTH_KEY")
 CLOUDFLARED_TOKEN=$(printf '%q' "$CLOUDFLARED_TOKEN")
 SSH_PUBLIC_KEY=$(printf '%q' "$SSH_PUBLIC_KEY")
@@ -296,8 +310,12 @@ NODE_BIN="$(sudo -u "${DEV_USER}" bash -c "
 export PATH="${NODE_BIN}:${PATH}"
 
 # ── 6. Tailscale ──────────────────────────────────────────────────────────────
-if step_done "tailscale"; then
+if [[ "${INSTALL_TAILSCALE}" != "true" ]]; then
+  skip "Tailscale (not selected)"
+  TAILSCALE_IP=""
+elif step_done "tailscale"; then
   skip "Tailscale"
+  TAILSCALE_IP="$(tailscale ip -4 2>/dev/null || echo '<pending>')"
 else
   info "Installing Tailscale..."
   if ! command -v tailscale &>/dev/null; then
@@ -313,10 +331,9 @@ else
     sleep 3
   done
   mark_done "tailscale"
-  success "Tailscale connected — IP: $(tailscale ip -4 2>/dev/null || echo '<pending>')"
+  TAILSCALE_IP="$(tailscale ip -4 2>/dev/null || echo '<pending>')"
+  success "Tailscale connected — IP: ${TAILSCALE_IP}"
 fi
-
-TAILSCALE_IP="$(tailscale ip -4 2>/dev/null || echo '<pending>')"
 
 # ── 7. Cloudflared ────────────────────────────────────────────────────────────
 if step_done "cloudflared"; then
@@ -605,16 +622,19 @@ echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━�
 echo ""
 echo -e "  ${BOLD}Prototype:${NC}      ${PROTOTYPE_DIR}"
 echo -e "  ${BOLD}Template repo:${NC}  ${REPO_DIR}"
-echo -e "  ${BOLD}Tailscale IP:${NC}   ${TAILSCALE_IP}"
+[[ -n "$TAILSCALE_IP" ]] && echo -e "  ${BOLD}Tailscale IP:${NC}   ${TAILSCALE_IP}"
 echo -e "  ${BOLD}MongoDB URI:${NC}    ${MONGO_URI}"
 echo ""
-echo -e "  ${BOLD}To start developing, SSH in and run:${NC}"
-echo -e "    ssh ${DEV_USER}@${TAILSCALE_IP}"
+echo -e "  ${BOLD}To start developing:${NC}"
 echo -e "    cd ${PROTOTYPE_DIR}"
 echo -e "    npm run dev"
 echo ""
 echo -e "  ${BOLD}Then open in your browser:${NC}"
-echo -e "    http://${TAILSCALE_IP}:3000"
+if [[ -n "$TAILSCALE_IP" ]]; then
+  echo -e "    http://${TAILSCALE_IP}:3000"
+else
+  echo -e "    http://localhost:3000"
+fi
 echo ""
 echo -e "${YELLOW}  NEXT STEPS:${NC}"
 echo -e "  1. Update NEXT_PUBLIC_SITE_URL in .env.local with your"
