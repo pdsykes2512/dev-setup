@@ -58,6 +58,22 @@ prompt_default() {
 # ── Root check ────────────────────────────────────────────────────────────────
 [[ "$(id -u)" -ne 0 ]] && die "Please run as root:\n  curl -fsSL <url> | sudo bash"
 
+# ── Screen/tmux check ─────────────────────────────────────────────────────────
+# This script takes 5-10 minutes. If your SSH session drops, it will be killed.
+# Running inside screen or tmux keeps it alive through disconnections.
+if [[ -z "${STY:-}" ]] && [[ -z "${TMUX:-}" ]]; then
+  echo -e "\n${YELLOW}${BOLD}  WARNING: You are not inside screen or tmux.${NC}"
+  echo -e "${YELLOW}  If your SSH session drops, this script will be killed mid-install.${NC}"
+  echo ""
+  echo -e "  ${BOLD}Recommended: cancel now and run inside screen instead:${NC}"
+  echo -e "    apt-get install -y screen"
+  echo -e "    screen -S setup bash setup.sh"
+  echo ""
+  echo -e "  If the connection drops, reconnect and run:  ${BOLD}screen -r setup${NC}"
+  echo ""
+  read -r -p "  Continue anyway without screen? (yes/no): " SCREEN_CONFIRM
+  [[ "$SCREEN_CONFIRM" != "yes" ]] && die "Aborted. Install screen and re-run inside it."
+fi
 # ══════════════════════════════════════════════════════════════════════════════
 #  GATHER CONFIG
 # ══════════════════════════════════════════════════════════════════════════════
@@ -170,12 +186,15 @@ REPO_DIR="${WORK_DIR}/clean-prototype"
 PROTOTYPE_DIR="${WORK_DIR}/${PROTOTYPE_NAME}"
 NVM_DIR="/home/${DEV_USER}/.nvm"
 
-# ── 1. System packages ────────────────────────────────────────────────────────
-info "Installing system packages..."
+# ── 1. System update + packages ───────────────────────────────────────────────
+info "Running full system update..."
 apt-get update -qq
+apt-get upgrade -y -qq
+apt-get autoremove -y -qq
+info "Installing system packages..."
 apt-get install -y -qq \
   curl wget gnupg ca-certificates lsb-release \
-  git openssh-server ufw build-essential
+  git openssh-server ufw build-essential screen
 success "System packages installed."
 
 # ── 2. Developer user ─────────────────────────────────────────────────────────
@@ -246,7 +265,20 @@ info "Installing Tailscale..."
 if ! command -v tailscale &>/dev/null; then
   curl -fsSL https://tailscale.com/install.sh | sh
 fi
-tailscale up --authkey="${TAILSCALE_AUTH_KEY}" --accept-routes
+
+# Ensure the daemon is running
+systemctl enable tailscaled 2>/dev/null || true
+systemctl start tailscaled 2>/dev/null || service tailscaled start || true
+
+# Retry tailscale up until the daemon is ready
+info "Connecting to Tailscale..."
+for i in {1..10}; do
+  tailscale up --authkey="${TAILSCALE_AUTH_KEY}" --accept-routes && break
+  [[ $i -eq 10 ]] && die "Tailscale failed to connect after 10 attempts. Check: journalctl -u tailscaled"
+  warn "Tailscale not ready yet, retrying in 3 seconds... (attempt ${i}/10)"
+  sleep 3
+done
+
 TAILSCALE_IP="$(tailscale ip -4 2>/dev/null || echo '<pending>')"
 success "Tailscale connected — IP: ${TAILSCALE_IP}"
 
