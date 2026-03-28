@@ -226,7 +226,8 @@ else
   info "Installing system packages..."
   apt-get install -y -qq \
     curl wget gnupg ca-certificates lsb-release \
-    git openssh-server ufw build-essential
+    git openssh-server ufw build-essential \
+    nano tmux
   mark_done "system-packages"
   success "System packages installed."
 fi
@@ -627,7 +628,10 @@ echo -e "  ${BOLD}MongoDB URI:${NC}    ${MONGO_URI}"
 echo ""
 echo -e "  ${BOLD}To start developing:${NC}"
 echo -e "    cd ${PROTOTYPE_DIR}"
+echo -e "    tmux new -s dev    # keeps running after SSH disconnects"
 echo -e "    npm run dev"
+echo -e ""
+echo -e "  If you disconnect, re-attach with:  ${BOLD}tmux attach -t dev${NC}"
 echo ""
 echo -e "  ${BOLD}Then open in your browser:${NC}"
 if [[ -n "$TAILSCALE_IP" ]]; then
