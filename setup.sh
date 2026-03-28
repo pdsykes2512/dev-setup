@@ -70,22 +70,6 @@ prompt_default() {
 # ── Root check ────────────────────────────────────────────────────────────────
 [[ "$(id -u)" -ne 0 ]] && die "Please run as root: sudo bash setup.sh"
 
-# ── Screen/tmux check ─────────────────────────────────────────────────────────
-if [[ -z "${STY:-}" ]] && [[ -z "${TMUX:-}" ]]; then
-  echo -e "\n${YELLOW}${BOLD}  WARNING: You are not inside screen or tmux.${NC}"
-  echo -e "${YELLOW}  If your SSH session drops, this script will be killed mid-install.${NC}"
-  echo -e "${YELLOW}  It will resume from where it stopped if you re-run it.${NC}"
-  echo ""
-  echo -e "  ${BOLD}Recommended: cancel now and run inside screen:${NC}"
-  echo -e "    screen -S setup"
-  echo -e "    sudo bash setup.sh"
-  echo ""
-  echo -e "  If connection drops, reconnect and run:  ${BOLD}screen -r setup${NC}"
-  echo ""
-  read -r -p "  Continue anyway without screen? (yes/no): " SCREEN_CONFIRM
-  [[ "$SCREEN_CONFIRM" != "yes" ]] && die "Aborted. Run inside screen and try again."
-fi
-
 # ══════════════════════════════════════════════════════════════════════════════
 #  GATHER CONFIG
 # ══════════════════════════════════════════════════════════════════════════════
@@ -228,7 +212,7 @@ else
   info "Installing system packages..."
   apt-get install -y -qq \
     curl wget gnupg ca-certificates lsb-release \
-    git openssh-server ufw build-essential screen
+    git openssh-server ufw build-essential
   mark_done "system-packages"
   success "System packages installed."
 fi
