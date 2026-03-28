@@ -82,13 +82,24 @@ prompt_secret TAILSCALE_AUTH_KEY \
   4. Copy and paste the key below (input is hidden)"
 
 # ── Cloudflared token ─────────────────────────────────────────────────────────
-prompt_secret CLOUDFLARED_TOKEN \
-  "Cloudflare Tunnel Token" \
-  "  1. Go to https://one.dash.cloudflare.com → Networks → Tunnels
+echo -e "\n${BOLD}Cloudflare Tunnel Token${NC}"
+echo -e "${YELLOW}  1. Go to https://one.dash.cloudflare.com → Networks → Tunnels
   2. Create a new tunnel (or open an existing one)
   3. Choose Linux as the environment
-  4. Copy the long token from the install command shown (after --token)
-  5. Paste it below (input is hidden)"
+  4. Copy the full install command shown (e.g. 'sudo cloudflared service install eyJ...')
+     or just the token on its own — either is fine
+  5. Paste it below (input is hidden)${NC}"
+CLOUDFLARED_RAW=""
+while [[ -z "$CLOUDFLARED_RAW" ]]; do
+  read -r -s -p "  → " CLOUDFLARED_RAW
+  echo ""
+  [[ -z "$CLOUDFLARED_RAW" ]] && echo -e "${RED}  This field is required.${NC}"
+done
+# Extract just the token — last whitespace-separated word in whatever was pasted
+CLOUDFLARED_TOKEN="${CLOUDFLARED_RAW##* }"
+if [[ -z "$CLOUDFLARED_TOKEN" ]]; then
+  die "Could not extract a token from what you pasted. Please try again."
+fi
 
 # ── SSH public key ────────────────────────────────────────────────────────────
 prompt_required SSH_PUBLIC_KEY \
