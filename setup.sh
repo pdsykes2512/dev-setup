@@ -552,7 +552,34 @@ BASHRCEOF
   fi
 fi
 
-# ── 16. Firewall ──────────────────────────────────────────────────────────────
+# ── 17. MongoDB driver ────────────────────────────────────────────────────────
+if step_done "mongodb-driver"; then
+  skip "MongoDB driver"
+else
+  info "Installing MongoDB driver..."
+  sudo -u "${DEV_USER}" bash -c "
+    export NVM_DIR=\"${NVM_DIR}\"
+    source \"\${NVM_DIR}/nvm.sh\"
+    cd ${PROTOTYPE_DIR} && npm install mongodb
+  "
+  mark_done "mongodb-driver"
+  success "MongoDB driver installed."
+fi
+
+# ── 18. MongoDB connection test ───────────────────────────────────────────────
+if step_done "mongodb-test"; then
+  skip "MongoDB connection test"
+else
+  info "Testing MongoDB connection..."
+  if mongosh "${MONGO_URI}" --quiet --eval "db.runCommand({ ping: 1 })" &>/dev/null; then
+    mark_done "mongodb-test"
+    success "MongoDB connection verified."
+  else
+    warn "MongoDB connection test failed — check the URI in .env.local"
+  fi
+fi
+
+# ── 19. Firewall ──────────────────────────────────────────────────────────────
 if step_done "firewall"; then
   skip "Firewall"
 else
@@ -592,8 +619,6 @@ echo ""
 echo -e "${YELLOW}  NEXT STEPS:${NC}"
 echo -e "  1. Update NEXT_PUBLIC_SITE_URL in .env.local with your"
 echo -e "     Cloudflare tunnel hostname once it is assigned."
-echo -e "  2. To use MongoDB in the app, install the driver:"
-echo -e "       cd ${PROTOTYPE_DIR} && npm install mongodb"
-echo -e "  3. Test the DB connection:"
-echo -e "       mongosh \"${MONGO_URI}\""
+echo -e "  2. Initialise Claude Code in the project:"
+echo -e "       cd ${PROTOTYPE_DIR} && claude"
 echo ""
