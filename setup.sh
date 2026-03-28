@@ -295,7 +295,7 @@ else
   sudo -u "${DEV_USER}" bash -c "
     export NVM_DIR=\"${NVM_DIR}\"
     source \"\${NVM_DIR}/nvm.sh\"
-    nvm install --lts
+    nvm install --lts --no-progress
     nvm alias default 'lts/*'
     echo \"  Node: \$(node --version)   npm: \$(npm --version)\"
   "
@@ -444,6 +444,12 @@ fi
 if step_done "scaffold-prototype"; then
   skip "Scaffold prototype '${PROTOTYPE_NAME}'"
 else
+  info "Configuring git identity for '${DEV_USER}'..."
+  sudo -u "${DEV_USER}" bash -c "
+    git config --global user.email '${DEV_USER}@dev.local'
+    git config --global user.name '${DEV_USER}'
+    git config --global init.defaultBranch main
+  "
   info "Scaffolding prototype '${PROTOTYPE_NAME}'..."
   sudo -u "${DEV_USER}" bash -c "
     export NVM_DIR=\"${NVM_DIR}\"
@@ -495,7 +501,45 @@ ENVEOF
   success ".env.local written."
 fi
 
-# ── 15. Claude Code ───────────────────────────────────────────────────────────
+# ── 15. Patch next.config ─────────────────────────────────────────────────────
+if step_done "next-config"; then
+  skip "next.config allowedDevOrigins"
+else
+  info "Patching next.config to allow Tailscale dev origins..."
+  # Find whichever config file the prototype uses (.ts or .js)
+  NEXT_CONFIG=""
+  for f in "${PROTOTYPE_DIR}/next.config.ts" "${PROTOTYPE_DIR}/next.config.js" "${PROTOTYPE_DIR}/next.config.mjs"; do
+    [[ -f "$f" ]] && NEXT_CONFIG="$f" && break
+  done
+
+  if [[ -z "$NEXT_CONFIG" ]]; then
+    warn "Could not find next.config file — skipping. Add allowedDevOrigins manually."
+  else
+    # If the file already has a nextConfig export, inject allowedDevOrigins into it.
+    # Otherwise write a minimal config file.
+    if grep -q 'allowedDevOrigins' "${NEXT_CONFIG}"; then
+      warn "allowedDevOrigins already present in ${NEXT_CONFIG} — skipping."
+    elif grep -q 'nextConfig' "${NEXT_CONFIG}"; then
+      # Insert allowedDevOrigins after the opening brace of the config object
+      sed -i 's/nextConfig = {/nextConfig = {\n  allowedDevOrigins: ["100.*", "*.ts.net"],/' "${NEXT_CONFIG}"
+    else
+      # Fallback: append a fresh export
+      cat >> "${NEXT_CONFIG}" <<'CONFIGEOF'
+
+const nextConfig = {
+  allowedDevOrigins: ["100.*", "*.ts.net"],
+};
+
+export default nextConfig;
+CONFIGEOF
+    fi
+    chown "${DEV_USER}:${DEV_USER}" "${NEXT_CONFIG}"
+    success "next.config updated — Tailscale origins allowed."
+  fi
+  mark_done "next-config"
+fi
+
+# ── 16. Claude Code ───────────────────────────────────────────────────────────
 if step_done "claude-code"; then
   skip "Claude Code"
 else
