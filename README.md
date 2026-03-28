@@ -133,6 +133,8 @@ sudo bash setup.sh
 | `env-local` | Writes `.env.local` |
 | `next-config` | Patches `next.config` for Tailscale origins |
 | `claude-code` | Installs Claude Code CLI |
+| `mongodb-driver` | Installs MongoDB npm driver in prototype |
+| `mongodb-test` | Verifies MongoDB connection |
 | `firewall` | Configures UFW |
 
 ---
@@ -158,11 +160,7 @@ http://<tailscale-ip>:3000
 ## Next steps
 
 1. Update `NEXT_PUBLIC_SITE_URL` in `.env.local` with your Cloudflare tunnel hostname once it is assigned
-2. To use MongoDB in the app, install the driver:
-   ```bash
-   cd ~/dev/my-brand-prototype && npm install mongodb
-   ```
-3. Initialise Claude Code in the project:
+2. Initialise Claude Code in the project:
    ```bash
    cd ~/dev/my-brand-prototype
    claude
