@@ -597,7 +597,47 @@ else
   fi
 fi
 
-# ── 19. Firewall ──────────────────────────────────────────────────────────────
+# ── 19. Dev server systemd service ───────────────────────────────────────────
+if step_done "dev-service"; then
+  skip "Dev server systemd service"
+else
+  info "Creating dev server systemd service..."
+
+  # Resolve the exact node binary path for use in the service
+  NODE_BIN_PATH="$(sudo -u "${DEV_USER}" bash -c "
+    export NVM_DIR=\"${NVM_DIR}\"
+    source \"\${NVM_DIR}/nvm.sh\" --silent
+    which node
+  ")"
+
+  cat > /etc/systemd/system/prototype-dev.service <<SERVICEEOF
+[Unit]
+Description=Next.js dev server for ${PROTOTYPE_NAME}
+After=network.target mongod.service
+Wants=mongod.service
+
+[Service]
+Type=simple
+User=${DEV_USER}
+WorkingDirectory=${PROTOTYPE_DIR}
+ExecStart=${NODE_BIN_PATH} node_modules/.bin/next dev
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=development
+EnvironmentFile=${PROTOTYPE_DIR}/.env.local
+
+[Install]
+WantedBy=multi-user.target
+SERVICEEOF
+
+  systemctl daemon-reload
+  systemctl enable prototype-dev
+  systemctl start prototype-dev
+  mark_done "dev-service"
+  success "Dev server service created and started."
+fi
+
+# ── 20. Firewall ──────────────────────────────────────────────────────────────
 if step_done "firewall"; then
   skip "Firewall"
 else
@@ -627,11 +667,14 @@ echo -e "  ${BOLD}Template repo:${NC}  ${REPO_DIR}"
 echo -e "  ${BOLD}MongoDB URI:${NC}    ${MONGO_URI}"
 echo ""
 echo -e "  ${BOLD}To start developing:${NC}"
+echo -e "    ssh ${DEV_USER}@${TAILSCALE_IP:-<container-ip>}"
 echo -e "    cd ${PROTOTYPE_DIR}"
-echo -e "    tmux new -s dev    # keeps running after SSH disconnects"
-echo -e "    npm run dev"
-echo -e ""
-echo -e "  If you disconnect, re-attach with:  ${BOLD}tmux attach -t dev${NC}"
+echo -e "    nano .env.local    # edit environment variables"
+echo ""
+echo -e "  ${BOLD}Dev server:${NC}  already running via systemd"
+echo -e "    journalctl -u prototype-dev -f   # follow logs"
+echo -e "    systemctl restart prototype-dev  # restart"
+echo -e "    systemctl stop prototype-dev     # stop"
 echo ""
 echo -e "  ${BOLD}Then open in your browser:${NC}"
 if [[ -n "$TAILSCALE_IP" ]]; then
