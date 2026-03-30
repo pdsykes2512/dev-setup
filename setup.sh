@@ -479,6 +479,22 @@ else
   success "Prototype dependencies installed."
 fi
 
+# ── 14. Create GitHub repo ────────────────────────────────────────────────────
+if step_done "github-repo"; then
+  skip "GitHub repo for ${PROTOTYPE_NAME}"
+else
+  info "Creating GitHub repo '${PROTOTYPE_NAME}'..."
+  sudo -u "${DEV_USER}" bash -c "
+    gh repo create ${PROTOTYPE_NAME} \
+      --private \
+      --source=${PROTOTYPE_DIR} \
+      --remote=origin \
+      --push
+  "
+  mark_done "github-repo"
+  success "GitHub repo created and initial commit pushed."
+fi
+
 # ── 14. Write .env.local ──────────────────────────────────────────────────────
 if step_done "env-local"; then
   skip ".env.local"
@@ -662,6 +678,7 @@ echo -e "${GREEN}${BOLD}  ✔  All done! Your dev environment is ready.${NC}"
 echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "  ${BOLD}Prototype:${NC}      ${PROTOTYPE_DIR}"
+echo -e "  ${BOLD}GitHub repo:${NC}    https://github.com/$(sudo -u "${DEV_USER}" gh api user --jq .login 2>/dev/null || echo '<user>')/${PROTOTYPE_NAME}"
 echo -e "  ${BOLD}Template repo:${NC}  ${REPO_DIR}"
 [[ -n "$TAILSCALE_IP" ]] && echo -e "  ${BOLD}Tailscale IP:${NC}   ${TAILSCALE_IP}"
 echo -e "  ${BOLD}MongoDB URI:${NC}    ${MONGO_URI}"
